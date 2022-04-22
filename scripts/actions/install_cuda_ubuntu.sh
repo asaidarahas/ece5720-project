@@ -137,9 +137,12 @@ $USE_SUDO apt-key adv --fetch-keys ${APT_KEY_URL}
 $USE_SUDO add-apt-repository "deb ${REPO_URL} /"
 $USE_SUDO apt-get update
 
+cuda_version = "cuda${CUDA_MAJOR}.${CUDA_MINOR}"
+cudnn_version = "7.6.0"
 echo "Installing CUDA packages ${CUDA_PACKAGES}"
 $USE_SUDO apt-get -y install ${CUDA_PACKAGES}
-$USE_SUDO apt-get -y install libcudnn8
+$USE_SUDO apt-get install libcudnn8=${cudnn_version}-1+${cuda_version}
+$USE_SUDO apt-get install libcudnn8-dev=${cudnn_version}-1+${cuda_version}
 
 if [[ $? -ne 0 ]]; then
     echo "CUDA Installation Error."
