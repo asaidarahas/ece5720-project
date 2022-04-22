@@ -15,10 +15,34 @@ jobs:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # 20.04 supports CUDA 11.0+
+          - os: ubuntu-20.04
+            cuda: "11.3"
+            gcc: 10
+           # 18.04 supports CUDA 10.1+ (gxx <= 8)
+          - os: ubuntu-18.04
+            cuda: "10.1"
+            gcc: 8
     steps:
     - uses: actions/checkout@v3
+
+    - name: Install CUDA
+      env:
+        cuda: ${{ matrix.cuda }}
+      run: ./scripts/actions/install_cuda_ubuntu.sh
+      shell: bash
+    
+    # Specify the correct host compilers
+    - name: Install/Select gcc and g++ 
+      run: |
+        sudo apt-get install -y gcc-${{ matrix.gcc }} g++-${{ matrix.gcc }}
+        echo "CC=/usr/bin/gcc-${{ matrix.gcc }}" >> $GITHUB_ENV
+        echo "CXX=/usr/bin/g++-${{ matrix.gcc }}" >> $GITHUB_ENV
+        echo "CUDAHOSTCXX=/usr/bin/g++-${{ matrix.gcc }}" >> $GITHUB_ENV
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
@@ -27,7 +51,7 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} `nproc`
 
     - name: Test
       working-directory: ${{github.workspace}}/build

@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(PROJECT LANGUAGES CXX CUDA)
 
-set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc")
+# set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc")
 set(CMAKE_CUDA_STANDARD 14)
  
 include(CTest)
