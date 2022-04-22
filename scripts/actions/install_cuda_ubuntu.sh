@@ -139,6 +139,7 @@ $USE_SUDO apt-get update
 
 echo "Installing CUDA packages ${CUDA_PACKAGES}"
 $USE_SUDO apt-get -y install ${CUDA_PACKAGES}
+$USE_SUDO apt-get -y install libcudnn8
 
 if [[ $? -ne 0 ]]; then
     echo "CUDA Installation Error."
@@ -158,6 +159,7 @@ export PATH="$CUDA_PATH/bin:$PATH"
 export LD_LIBRARY_PATH="$CUDA_PATH/lib:$LD_LIBRARY_PATH"
 nvcc -V
 find /usr/local/ -name cublas_v2.h
+find /usr/local/ -name cudnn
 
 # If executed on github actions, make the appropriate echo statements to update the environment
 if [[ $GITHUB_ACTIONS ]]; then
