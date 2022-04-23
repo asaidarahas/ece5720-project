@@ -138,7 +138,7 @@ $USE_SUDO add-apt-repository "deb ${REPO_URL} /"
 $USE_SUDO apt-get update
 
 cuda_version = "cuda${CUDA_MAJOR}.${CUDA_MINOR}"
-cudnn_version = "8.4.0.*"
+cudnn_version = "7.6.0.*"
 echo "Installing CUDA packages ${CUDA_PACKAGES}"
 $USE_SUDO apt-get -y install ${CUDA_PACKAGES}
 $USE_SUDO apt-get install libcudnn8=${cudnn_version}-1+${cuda_version}
