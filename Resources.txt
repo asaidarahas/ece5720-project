@@ -1,1 +1,45 @@
 https://luniak.io/cuda-neural-network-implementation-part-1
+
+Used APIs definitions:
+
+**cudnnSetTensor4dDescriptor**( cudnnTensorDescriptor_t   tensorDesc, cudnnTensorFormat_t format,cudnnDataType_t dataType, int n, int c, int h, int w )
+    -initializes a previously created generic Tensor descriptor object into a 4D tensor
+    -Parameters :
+      tensorDesc Input/Output. Handle to a previously created tensor descriptor. 
+      format Input. Type of format. 
+      datatype Input. Data type. 
+      n c h w Input. Number of images. Input. Number of feature maps per image. Input. Height of each feature map. Input. Width of each feature map
+      
+**cudnnSetFilter4dDescriptor**( cudnnFilterDescriptor_t filterDesc, cudnnDataType_t dataType, cudnnTensorFormat_t  format, int k, int c, int h, int w )
+   -  initializes a previously created filter descriptor object into a 4D filter. Filters layout must be contiguous in memory.
+   -  Parameters :
+       filterDesc Input/Output. Handle to a previously created filter descriptor. 
+       datatype Input. Data type. 
+       format Input. Type of format. 
+       k c h w Input. Number of output feature maps. Input. Number of input feature maps. Input. Height of each filter. Input. Width of each filter
+       
+**cudnnSetConvolution2dDescriptor**( cudnnConvolutionDescriptor_t convDesc, int pad_h, int pad_w, int u, int v, int dilation_h, int dilation_w, cudnnConvolutionMode_t mode,cudnnDataType_t computeType )
+   - initializes a previously created convolution descriptor object into a 2D correlation. This function assumes that the tensor and filter descriptors corresponds to the formard convolution path and checks if their settings are valid. That same convolution descriptor can be reused in the backward path provided it corresponds to the same layer.
+   - Parameters:
+        convDesc Input/Output. Handle to a previously created convolution descriptor. 
+        pad_h Input. zero-padding height: number of rows of zeros implicitly concatenated onto the top and onto the bottom of input images. 
+        pad_w Input. zero-padding width: number of columns of zeros implicitly concatenated onto the left and onto the right of input images. 
+        u v Input. Vertical filter stride. Input. Horizontal filter stride. 
+        dilation_h Input. Filter height dilation. 
+        dilation_w Input. Filter width dilation. 
+        mode Input. Selects between CUDNN_CONVOLUTION and CUDNN_CROSS_CORRELATION.
+        computeType Input. compute precision.
+        
+        
+**cudnnGetConvolution2dForwardOutputDim**( const cudnnConvolutionDescriptor_t convDesc, const cudnnTensorDescriptor_t inputTensorDesc, const cudnnFilterDescriptor_t filterDesc, int *n, int *c, int *h, int *w )
+   - This function returns the dimensions of the resulting 4D tensor of a 2D convolution, given the convolution descriptor, the input tensor descriptor and the filter descriptor This function can help to setup the output tensor and allocate the proper amount of memory prior to launch the actual convolution.
+   - Each dimension h and w of the output images is computed as followed:    
+   outputDim = 1 + ( inputDim + 2*pad - (((filterDim-1)*dilation)+1) )/ convolutionStride;
+   - Parameters:
+   convDesc Input. Handle to a previously created convolution descriptor.
+   inputTensorDesc Input. Handle to a previously initialized tensor descriptor. 
+   filterDesc Input. Handle to a previously initialized filter descriptor.
+   n c h w Output. Number of output images. Output. Number of output feature maps per image. Output. Height of each output feature map. Output. Width of each output feature map.
+   
+**cudnnGetConvolutionForwardAlgorithm**( cudnnHandle_t handle, const cudnnTensorDescriptor_t xDesc, const cudnnFilterDescriptor_t wDesc, const cudnnConvolutionDescriptor_t convDesc, const cudnnTensorDescriptor_t yDesc, cudnnConvolutionFwdPreference_t preference, size_t memoryLimitInbytes, cudnnConvolutionFwdAlgo_t *algo)
+     - This function serves as a heuristic for obtaining the best suited algorithm for cudnnConvolutionForward for the given layer specifications. Based on the input preference, this function will either return the fastest algorithm or the fastest algorithm within a given memory limit. 
