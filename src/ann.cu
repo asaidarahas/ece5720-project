@@ -354,8 +354,20 @@ public:
 int main(void)
 {
 
+    unsigned char **train_images, **test_images, *train_labels, *test_labels;
     std::cout << "MNIST data directory: " << MNIST_DATA_DIR << std::endl;
-    mnist::read_mnist(MNIST_DATA_DIR);
+
+    mnist::MnistDataset dataset = mnist::read_dataset(MNIST_DATA_DIR, 0, 0);
+    train_images = dataset.training_images;
+    train_labels = dataset.training_labels;
+    test_images = dataset.test_images;
+    test_labels = dataset.training_labels;
+
+    for (int i = 0; i < 100; i++)
+    {
+        std::cout << +train_images[i][i] << " ";
+    }
+    std::cout << "\n";
 
     return 0;
 }
