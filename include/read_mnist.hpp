@@ -1,5 +1,5 @@
 #include <iostream>
-#include <fstream>
+#include <cstdlib>
 #include <vector>
 #include <stdexcept>
 
@@ -11,14 +11,13 @@ namespace mnist
 {
     struct MnistDataset
     {
-        // std::vector<std::vector<unsigned char>> training_images;
-        uchar **training_images; // training images
-        uchar **test_images;     // test images
-        uchar *training_labels;  // training labels
-        uchar *test_labels;      // test labels
+        std::vector<uint8_t> training_images; // training images
+        std::vector<uint8_t> test_images;     // test images
+        std::vector<int> training_labels;     // training labels
+        std::vector<int> test_labels;         // test labels
     };
 
-    int reverseInt(int i)
+    inline int reverseInt(int i)
     {
         uchar c1, c2, c3, c4;
 
@@ -30,95 +29,115 @@ namespace mnist
         return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
     }
 
-    uchar **read_mnist_images(const std::string &path, std::size_t limit)
+    void get_image_size(const std::string &path, size_t& width, size_t& height)
     {
-        std::ifstream file(path, std::ios::binary);
+        std::string full_path = path + "/train-images-idx3-ubyte";
+        FILE *fp = fopen(full_path.c_str(), "rb");
 
-        if (file.is_open())
+        if (fp)
         {
             int magic_number;
             int number_of_images;
-            int n_rows;
-            int n_cols;
 
-            file.read((char *)&magic_number, sizeof(magic_number));
+            fread(&magic_number, sizeof(magic_number), 1, fp);
             magic_number = reverseInt(magic_number);
 
-            file.read((char *)&number_of_images, sizeof(number_of_images));
+            fread(&number_of_images, sizeof(number_of_images), 1, fp);
             number_of_images = reverseInt(number_of_images);
 
-            file.read((char *)&n_rows, sizeof(n_rows));
-            n_rows = reverseInt(n_rows);
+            fread(&width, sizeof(int), 1, fp);
+            width = reverseInt(width);
 
-            file.read((char *)&n_cols, sizeof(n_cols));
-            n_cols = reverseInt(n_cols);
+            fread(&height, sizeof(int), 1, fp);
+            height = reverseInt(height);
+        }
+        else
+        {
+            throw std::runtime_error("Cannot open file `" + path + "`!");
+        }
+        fclose(fp);
+    }
 
-            uchar **dataset = new uchar *[number_of_images];
-            for (int i = 0; i < number_of_images; ++i)
-            {
-                dataset[i] = new uchar[n_rows * n_cols];
-                file.read((char *)dataset[i], n_rows * n_cols);
-            }
+    std::vector<uint8_t> read_mnist_images(const std::string &path, std::size_t limit)
+    {
+        FILE *fp = fopen(path.c_str(), "rb");
+
+        if (fp)
+        {
+            int magic_number;
+            int number_of_images;
+            int width;
+            int height;
+
+            fread(&magic_number, sizeof(magic_number), 1, fp);
+            magic_number = reverseInt(magic_number);
+
+            fread(&number_of_images, sizeof(number_of_images), 1, fp);
+            number_of_images = reverseInt(number_of_images);
+
+            fread(&width, sizeof(width), 1, fp);
+            width = reverseInt(width);
+
+            fread(&height, sizeof(height), 1, fp);
+            height = reverseInt(height);
+
+            std::vector<uint8_t> dataset(number_of_images * width * height);
+            fread(&dataset[0], sizeof(uint8_t), number_of_images * width * height, fp);
+
+            fclose(fp);
             return dataset;
         }
         else
         {
             throw std::runtime_error("Cannot open file `" + path + "`!");
         }
+        fclose(fp);
     }
 
-    uchar *read_mnist_labels(const std::string &path, std::size_t limit)
+    std::vector<int> read_mnist_labels(const std::string &path, std::size_t limit)
     {
-        std::ifstream file(path, std::ios::binary);
+        FILE *fp = fopen(path.c_str(), "rb");
 
-        if (file.is_open())
+        if (fp)
         {
             int magic_number;
             int number_of_labels;
-            int n_rows;
-            int n_cols;
 
-            file.read((char *)&magic_number, sizeof(magic_number));
+            fread(&magic_number, sizeof(magic_number), 1, fp);
             magic_number = reverseInt(magic_number);
 
-            file.read((char *)&number_of_labels, sizeof(number_of_labels));
+            fread(&number_of_labels, sizeof(number_of_labels), 1, fp);
             number_of_labels = reverseInt(number_of_labels);
 
-            file.read((char *)&n_rows, sizeof(n_rows));
-            n_rows = reverseInt(n_rows);
+            std::vector<int> dataset(number_of_labels);
+            fread(&dataset[0], sizeof(int), 1, fp);
 
-            file.read((char *)&n_cols, sizeof(n_cols));
-            n_cols = reverseInt(n_cols);
-
-            uchar *dataset = new uchar[number_of_labels];
-            for (int i = 0; i < number_of_labels; ++i)
-            {
-                file.read((char *)&dataset[i], 1);
-            }
+            fclose(fp);
             return dataset;
         }
         else
         {
             throw std::runtime_error("Cannot open file `" + path + "`!");
         }
+        fclose(fp);
     }
 
-    uchar **read_training_images(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_training_images(const std::string &path, std::size_t limit)
     {
         return read_mnist_images(path + "/train-images-idx3-ubyte", limit);
     }
 
-    uchar **read_test_images(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_test_images(const std::string &path, std::size_t limit)
     {
         return read_mnist_images(path + "/t10k-images-idx3-ubyte", limit);
     }
 
-    uchar *read_training_labels(const std::string &path, std::size_t limit)
+    std::vector<int> read_training_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/train-labels-idx1-ubyte", limit);
     }
 
-    uchar *read_test_labels(const std::string &path, std::size_t limit)
+    std::vector<int> read_test_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/t10k-labels-idx1-ubyte", limit);
     }
@@ -136,4 +155,4 @@ namespace mnist
         return dataset;
     }
 
-} // end of namespace mnist
+}
