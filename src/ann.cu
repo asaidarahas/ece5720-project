@@ -606,7 +606,7 @@ int main(int argc, char **argv)
     if (argc == 1)
     {
         batchSize = 8;
-        epochs = 10;
+        epochs = 100;
         lr = 0.001;
     }
     else
