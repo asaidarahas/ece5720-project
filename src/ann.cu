@@ -1,17 +1,14 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
-#include "read_mnist.hpp"
-// #include <algorithm>
-// #include <memory>
-#include <iomanip>
-
 #include <random>
+
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
-
 #include <cublas_v2.h>
 #include <cudnn.h>
+
+#include "read_mnist.hpp"
 
 // #define blockSize 128
 
