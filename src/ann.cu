@@ -4,6 +4,7 @@
 #include "read_mnist.hpp"
 // #include <algorithm>
 // #include <memory>
+#include <iomanip>
 
 #include <random>
 #include <cuda_runtime.h>
@@ -74,16 +75,66 @@ static const char *_cudaGetErrorEnum(cublasStatus_t error)
     return "<unknown>";
 }
 
-#define cudnnCheckErrors(f)                                    \
-    {                                                          \
-        cudnnStatus_t err = (f);                               \
-        if (err != CUDNN_STATUS_SUCCESS)                       \
-        {                                                      \
-            std::cout                                          \
-                << "    Error occurred: " << err << std::endl; \
-            std::exit(1);                                      \
-        }                                                      \
+#define cudnnCheckErrors(fn)                                \
+    do                                                      \
+    {                                                       \
+        cudnnStatus_t __err = fn;                           \
+        if (__err != CUDNN_STATUS_SUCCESS)                  \
+        {                                                   \
+            fprintf(stderr, "Fatal error: %s (at %s:%d)\n", \
+                    _cudnnGetErrorEnum(__err),              \
+                    __FILE__, __LINE__);                    \
+            fprintf(stderr, "*** FAILED - ABORTING\n");     \
+            exit(1);                                        \
+        }                                                   \
+    } while (0)
+
+static const char *_cudnnGetErrorEnum(cudnnStatus_t error)
+{
+    switch (error)
+    {
+    case CUDNN_STATUS_SUCCESS:
+        return "CUDNN_STATUS_SUCCESS";
+
+    case CUDNN_STATUS_NOT_INITIALIZED:
+        return "CUDNN_STATUS_NOT_INITIALIZED";
+
+    case CUDNN_STATUS_ALLOC_FAILED:
+        return "CUDNN_STATUS_ALLOC_FAILED";
+
+    case CUDNN_STATUS_INVALID_VALUE:
+        return "CUDNN_STATUS_INVALID_VALUE";
+
+    case CUDNN_STATUS_ARCH_MISMATCH:
+        return "CUDNN_STATUS_ARCH_MISMATCH";
+
+    case CUDNN_STATUS_MAPPING_ERROR:
+        return "CUDNN_STATUS_MAPPING_ERROR";
+
+    case CUDNN_STATUS_EXECUTION_FAILED:
+        return "CUDNN_STATUS_EXECUTION_FAILED";
+
+    case CUDNN_STATUS_INTERNAL_ERROR:
+        return "CUDNN_STATUS_INTERNAL_ERROR";
+
+    case CUDNN_STATUS_BAD_PARAM:
+        return "CUDNN_STATUS_BAD_PARAM";
+
+    case CUDNN_STATUS_NOT_SUPPORTED:
+        return "CUDNN_STATUS_BAD_PARAM";
+
+    case CUDNN_STATUS_RUNTIME_FP_OVERFLOW:
+        return "CUDNN_STATUS_RUNTIME_FP_OVERFLOW";
+
+    case CUDNN_STATUS_RUNTIME_IN_PROGRESS:
+        return "CUDNN_STATUS_RUNTIME_IN_PROGRESS";
+
+    case CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING:
+        return "CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING";
     }
+
+    return "<unknown>";
+}
 
 /**
  * Computes ceil(x / y) for integral nonnegative values.
@@ -111,7 +162,7 @@ __global__ void FillOnes(double *vec, int size)
     if (idx >= size)
         return;
 
-    vec[idx] = 1.0f;
+    vec[idx] = 1.0;
 }
 
 struct FullyConnectedLayer
@@ -315,11 +366,11 @@ public:
                                       onevec, 1,
                                       &alpha,
                                       fc2, ref_fc2.outputs));
-        
+
         // ReLU activation
         cudnnCheckErrors(cudnnActivationForward(cudnnH, fc2Act, &alpha,
                                                 fc2Tensor, fc2, &beta, fc2Tensor, fc2act));
-        
+
         // FC3 Layer
         // Forward propagate neurons using weights (fc2 = wfc2'*fc1act)
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_T, CUBLAS_OP_N,
@@ -337,11 +388,11 @@ public:
                                       onevec, 1,
                                       &alpha,
                                       fc3, ref_fc3.outputs));
-        
+
         // ReLU activation
         cudnnCheckErrors(cudnnActivationForward(cudnnH, fc3Act, &alpha,
                                                 fc3Tensor, fc3, &beta, fc3Tensor, fc3act));
-        
+
         // FC4 Layer
         // Forward propagate neurons using weights (fc2 = wfc2'*fc1act)
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_T, CUBLAS_OP_N,
@@ -359,11 +410,11 @@ public:
                                       onevec, 1,
                                       &alpha,
                                       fc4, ref_fc4.outputs));
-        
+
         // ReLU activation
         cudnnCheckErrors(cudnnActivationForward(cudnnH, fc4Act, &alpha,
                                                 fc4Tensor, fc4, &beta, fc4Tensor, fc4act));
-        
+
         // FC5 Layer
         // Forward propagate neurons using weights (fc2 = wfc2'*fc1act)
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_T, CUBLAS_OP_N,
@@ -393,7 +444,7 @@ public:
                   double *wfc2, double *fc2bias, double *wfc3, double *fc3bias, double *wfc4, double *fc4bias, double *wfc5, double *fc5bias,
                   double *gfc1, double *gfc1bias, double *gfc2, double *gfc2bias, double *gfc3, double *gfc3bias, double *gfc4, double *gfc4bias,
                   double *gfc5, double *gfc5bias, double *dfc1, double *dfc1act, double *dfc2, double *dfc2act, double *dfc3, double *dfc3act,
-                  double *dfc4, double *dfc4act, double *dfc5, double *dfc5act, double *onevec, int blockSize)
+                  double *dfc4, double *dfc4act, double *dfc5, double *dout, double *onevec)
     {
         double alpha = 1.0f, beta = 0.0f;
 
@@ -403,7 +454,7 @@ public:
         cudaCheckErrors(cudaMemcpyAsync(dloss_data, out, sizeof(double) * batchSize * ref_fc5.outputs, cudaMemcpyDeviceToDevice));
 
         // Softmax layer
-        SoftmaxLossBackprop<<<RoundUp(batchSize,  blockSize), blockSize>>>(labels, ref_fc5.outputs, batchSize, dloss_data);
+        SoftmaxLossBackprop<<<RoundUp(batchSize, 128), 128>>>(labels, ref_fc5.outputs, batchSize, dloss_data);
 
         // Accounting for batch size in SGD
         cublasCheckErrors(cublasDscal(cublasH, ref_fc5.outputs * batchSize, &scalVal, dloss_data, 1));
@@ -420,8 +471,8 @@ public:
                                       &alpha, wfc5, ref_fc5.inputs, dloss_data, ref_fc5.outputs, &beta, dfc5, ref_fc5.inputs));
         // act activation
         cudnnCheckErrors(cudnnActivationBackward(cudnnH, fc4Act, &alpha,
-                                           fc4Tensor, fc4act, fc4Tensor, dfc5,
-                                           fc4Tensor, fc4, &beta, fc4Tensor, dfc4act));
+                                                 fc4Tensor, fc4act, fc4Tensor, dfc5,
+                                                 fc4Tensor, fc4, &beta, fc4Tensor, dfc4act));
 
         // FC4 layer
         // Compute derivative with respect to weights: gfc1 = (pool2 * dfc1act')
@@ -435,8 +486,8 @@ public:
                                       &alpha, wfc4, ref_fc4.inputs, dfc4act, ref_fc4.outputs, &beta, dfc4, ref_fc4.inputs));
         // act activation
         cudnnCheckErrors(cudnnActivationBackward(cudnnH, fc3Act, &alpha, fc3Tensor, fc3act, fc3Tensor, dfc4,
-                                                fc3Tensor, fc3, &beta, fc3Tensor, dfc3act));
-        
+                                                 fc3Tensor, fc3, &beta, fc3Tensor, dfc3act));
+
         // FC3 layer
         // Compute derivative with respect to weights: gfc1 = (pool2 * dfc1act')
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc3.inputs, ref_fc3.outputs, batchSize,
@@ -449,8 +500,8 @@ public:
                                       &alpha, wfc3, ref_fc3.inputs, dfc3act, ref_fc3.outputs, &beta, dfc3, ref_fc3.inputs));
         // act activation
         cudnnCheckErrors(cudnnActivationBackward(cudnnH, fc2Act, &alpha, fc2Tensor, fc2act, fc2Tensor, dfc3,
-                                                fc2Tensor, fc2, &beta, fc2Tensor, dfc2act));
-        
+                                                 fc2Tensor, fc2, &beta, fc2Tensor, dfc2act));
+
         // FC2 layer
         // Compute derivative with respect to weights: gfc1 = (pool2 * dfc1act')
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc2.inputs, ref_fc2.outputs, batchSize,
@@ -463,8 +514,8 @@ public:
                                       &alpha, wfc2, ref_fc2.inputs, dfc2act, ref_fc2.outputs, &beta, dfc2, ref_fc2.inputs));
         // act activation
         cudnnCheckErrors(cudnnActivationBackward(cudnnH, fc1Act, &alpha, fc1Tensor, fc1act, fc1Tensor, dfc2,
-                                                fc1Tensor, fc1, &beta, fc1Tensor, dfc1act));
-        
+                                                 fc1Tensor, fc1, &beta, fc1Tensor, dfc1act));
+
         // FC2 layer
         // Compute derivative with respect to weights: gfc1 = (pool2 * dfc1act')
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc2.inputs, ref_fc2.outputs, batchSize,
@@ -477,8 +528,8 @@ public:
                                       &alpha, wfc2, ref_fc2.inputs, dfc2act, ref_fc2.outputs, &beta, dfc2, ref_fc2.inputs));
         // act activation
         cudnnCheckErrors(cudnnActivationBackward(cudnnH, fc1Act, &alpha, fc1Tensor, fc1act, fc1Tensor, dfc2,
-                                                fc1Tensor, fc1, &beta, fc1Tensor, dfc1act));
-        
+                                                 fc1Tensor, fc1, &beta, fc1Tensor, dfc1act));
+
         // FC1 layer
         // Compute derivative with respect to weights: gfc1 = (pool2 * dfc1act')
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc1.inputs, ref_fc1.outputs, batchSize,
@@ -490,8 +541,6 @@ public:
         cublasCheckErrors(cublasDgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.inputs, batchSize, ref_fc1.outputs,
                                       &alpha, wfc1, ref_fc1.inputs, dfc1act, ref_fc1.outputs, &beta, dfc1, ref_fc1.inputs));
         // Last derivative?
-
-        
     }
 
     void update(double learning_rate,
@@ -519,19 +568,19 @@ public:
                                       &alpha, gfc2, 1, wfc2, 1));
         cublasCheckErrors(cublasDaxpy(cublasH, static_cast<int>(ref_fc2.bias.size()),
                                       &alpha, gfc2bias, 1, fc2bias, 1));
-        
+
         // Fully connected 3
         cublasCheckErrors(cublasDaxpy(cublasH, static_cast<int>(ref_fc3.weights.size()),
                                       &alpha, gfc3, 1, wfc3, 1));
         cublasCheckErrors(cublasDaxpy(cublasH, static_cast<int>(ref_fc3.bias.size()),
                                       &alpha, gfc3bias, 1, fc3bias, 1));
-        
+
         // Fully connected 4
         cublasCheckErrors(cublasDaxpy(cublasH, static_cast<int>(ref_fc4.weights.size()),
                                       &alpha, gfc4, 1, wfc4, 1));
         cublasCheckErrors(cublasDaxpy(cublasH, static_cast<int>(ref_fc4.bias.size()),
                                       &alpha, gfc4bias, 1, fc4bias, 1));
-        
+
         // Fully connected 5
         cublasCheckErrors(cublasDaxpy(cublasH, static_cast<int>(ref_fc5.weights.size()),
                                       &alpha, gfc5, 1, wfc5, 1));
@@ -543,18 +592,18 @@ public:
 int main(int argc, char **argv)
 {
     std::vector<uint8_t> train_images, test_images;
-    std::vector<int> train_labels, test_labels;
+    std::vector<uint8_t> train_labels, test_labels;
     int batchSize, epochs;
     size_t width, height;
     float elapsedTime;
     double lr, lr_gamma = 0.0001, lr_power = 0.75;
     int train_size, test_size;
-    int blockSize;   // The launch configurator returned block size 
-    int minGridSize; // The minimum grid size needed to achieve the 
-                   // maximum occupancy for a full device launch 
-    int gridSize;    // The actual grid size needed, based on input size 
+    int blockSize;   // The launch configurator returned block size
+    int minGridSize; // The minimum grid size needed to achieve the
+                     // maximum occupancy for a full device launch
+    int gridSize;    // The actual grid size needed, based on input size
 
-    if (argc == 0)
+    if (argc == 1)
     {
         batchSize = 8;
         epochs = 10;
@@ -567,7 +616,7 @@ int main(int argc, char **argv)
         lr = atof(argv[6]);
     }
 
-    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, FillOnes, 0, 0);
+    cudaCheckErrors(cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, FillOnes, 0, 0));
 
     std::cout << "MNIST data directory: " << MNIST_DATA_DIR << std::endl;
 
@@ -585,6 +634,7 @@ int main(int argc, char **argv)
     std::cout << "Number of training images = " << train_size << std::endl;
     std::cout << "Number of test images = " << test_size << std::endl;
     std::cout << "Image size = " << width << "x" << height << std::endl;
+    std::cout << "Batch Size = " << batchSize << std::endl;
 
     // Defining architecture
     FullyConnectedLayer fc1(width * height, 400);
@@ -643,8 +693,10 @@ int main(int argc, char **argv)
     // Allocate Memory on device
     double *dev_data, *dev_labels, *dev_fc1, *dev_fc1Act, *dev_fc2, *dev_fc2Act, *dev_fc3, *dev_fc3Act, *dev_fc4, *dev_fc4Act, *dev_fc5;
     double *dev_wfc1, *dev_fc1bias, *dev_wfc2, *dev_fc2bias, *dev_wfc3, *dev_fc3bias, *dev_wfc4, *dev_fc4bias, *dev_wfc5, *dev_fc5bias;
-    double *dev_onevec;
+    double *dev_out, *dev_onevec;
+
     cudaCheckErrors(cudaMalloc(&dev_data, sizeof(double) * batchSize * width * height));
+    cudaCheckErrors(cudaMalloc(&dev_labels, sizeof(double) * batchSize));
     cudaCheckErrors(cudaMalloc(&dev_fc1, sizeof(double) * batchSize * fc1.outputs));
     cudaCheckErrors(cudaMalloc(&dev_fc2, sizeof(double) * batchSize * fc2.outputs));
     cudaCheckErrors(cudaMalloc(&dev_fc3, sizeof(double) * batchSize * fc3.outputs));
@@ -654,8 +706,9 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaMalloc(&dev_fc2Act, sizeof(double) * batchSize * fc2.outputs));
     cudaCheckErrors(cudaMalloc(&dev_fc3Act, sizeof(double) * batchSize * fc3.outputs));
     cudaCheckErrors(cudaMalloc(&dev_fc4Act, sizeof(double) * batchSize * fc4.outputs));
-    cudaCheckErrors(cudaMalloc(&dev_onevec, sizeof(float)* network.batchSize));
-    
+    cudaCheckErrors(cudaMalloc(&dev_out, sizeof(double) * batchSize * fc5.outputs));
+    cudaCheckErrors(cudaMalloc(&dev_onevec, sizeof(double) * network.batchSize));
+
     // Weights and Biases
     cudaCheckErrors(cudaMalloc(&dev_wfc1, sizeof(double) * fc1.weights.size()));
     cudaCheckErrors(cudaMalloc(&dev_wfc2, sizeof(double) * fc2.weights.size()));
@@ -684,7 +737,7 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaMalloc(&dev_gfc5bias, sizeof(double) * fc5.bias.size()));
 
     // Diff wrt data
-    double *dev_dfc1, *dev_dfc1act, *dev_dfc2, *dev_dfc2act, *dev_dfc3, *dev_dfc3act, *dev_dfc4, *dev_dfc4act, *dev_dfc5, *dev_out, *dev_dloss;
+    double *dev_dfc1, *dev_dfc1act, *dev_dfc2, *dev_dfc2act, *dev_dfc3, *dev_dfc3act, *dev_dfc4, *dev_dfc4act, *dev_dfc5, *dev_dout, *dev_dloss;
     cudaCheckErrors(cudaMalloc(&dev_dfc1, sizeof(double) * network.batchSize * fc1.inputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc2, sizeof(double) * network.batchSize * fc2.inputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc3, sizeof(double) * network.batchSize * fc3.inputs));
@@ -695,9 +748,8 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaMalloc(&dev_dfc2act, sizeof(double) * network.batchSize * fc2.outputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc3act, sizeof(double) * network.batchSize * fc3.outputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc4act, sizeof(double) * network.batchSize * fc4.outputs));
-    cudaCheckErrors(cudaMalloc(&dev_out, sizeof(double) * network.batchSize * fc5.outputs));
+    cudaCheckErrors(cudaMalloc(&dev_dout, sizeof(double) * network.batchSize * fc5.outputs));
     cudaCheckErrors(cudaMalloc(&dev_dloss, sizeof(double) * network.batchSize * fc5.outputs));
-    
 
     // Transfer Host to Device
     cudaCheckErrors(cudaMemcpyAsync(dev_wfc1, &fc1.weights[0], sizeof(double) * fc1.weights.size(), cudaMemcpyHostToDevice));
@@ -713,24 +765,30 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaMemcpyAsync(dev_fc5bias, &fc5.bias[0], sizeof(double) * fc5.bias.size(), cudaMemcpyHostToDevice));
 
     // Round up according to array size
-    gridSize = RoundUp(network.batchSize, blockSize); 
+    gridSize = RoundUp(network.batchSize, blockSize);
 
     FillOnes<<<gridSize, blockSize>>>(dev_onevec, network.batchSize);
 
     // Normalize images
-    std::vector<double> train_images_double(train_size), train_labels_double(train_size);
+    std::vector<double> train_images_double(train_images.size()), train_labels_double(train_size);
     for (size_t i = 0; i < train_size * width * height; ++i)
         train_images_double[i] = (double)train_images[i] / 255.0;
 
     for (size_t i = 0; i < train_size; ++i)
+    {
         train_labels_double[i] = (double)train_labels[i];
-
+    }
     cudaCheckErrors(cudaDeviceSynchronize());
 
-    // Training
-    printf("Training...\n");
+    /* Training */
+    printf("\nTraining...\n");
+    double *loss;
+    loss = (double *)malloc(batchSize * fc5.outputs * sizeof(double));
+    double total_loss;
+
     for (int iter = 0; iter < epochs; ++iter)
     {
+        total_loss = 0;
         // Train
         int imageid = iter % (train_size / network.batchSize);
 
@@ -751,15 +809,23 @@ int main(int argc, char **argv)
                          dev_wfc3, dev_fc3bias, dev_wfc4, dev_fc4bias, dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias,
                          dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias, dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias,
                          dev_dfc1, dev_dfc1act, dev_dfc2, dev_dfc2act, dev_dfc3, dev_dfc3act, dev_dfc4, dev_dfc4act,
-                         dev_dfc5, dev_out, dev_onevec, blockSize);
+                         dev_dfc5, dev_dout, dev_onevec);
+
+        cudaCheckErrors(cudaMemcpy(loss, dev_dloss, fc5.outputs * batchSize * sizeof(double), cudaMemcpyDeviceToHost));
+        for (int i = 0; i < fc5.outputs * batchSize; i++)
+        {
+            total_loss += loss[i];
+        }
+
+        std::cout << "Epoch " << iter + 1 << ", Loss = " << total_loss / batchSize << std::endl;
 
         // Compute learning rate
         double learningRate = static_cast<double>(lr * pow((1.0 + lr_gamma * iter), (-lr_power)));
 
         // Update weights
         network.update(learningRate, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias, dev_wfc3, dev_fc3bias, dev_wfc4, dev_fc4bias,
-                        dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias, dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias,
-                        dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias);
+                       dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias, dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias,
+                       dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias);
     }
     cudaCheckErrors(cudaDeviceSynchronize());
 
@@ -771,12 +837,61 @@ int main(int argc, char **argv)
     cudaEventElapsedTime(&elapsedTime, start, stop);
 
     // resolution is 0.5 micro second
-    // printf("\n%dx%d, time = %10.3e ms\n", tr, cols, elapsedTime);
+    printf("%d images, epochs = %d, batch size = %d, time = %10.3e ms\n", train_size, epochs, batchSize, elapsedTime);
 
-    // Testing
+    /* Testing */
+    printf("\nTesting...\n");
 
-    
+    // start timing
+    cudaEventRecord(start, 0);
+
+    // Initialize
+    Network test(1, fc1, fc2, fc3, fc4, fc5);
+    double accuracy;
+    int count = 0;
+
+    for (int i = 0; i < test_size; ++i)
+    {
+        std::vector<double> data(width * height);
+
+        // Normalize image to be in [0,1]
+        for (int j = 0; j < width * height; ++j)
+            data[j] = (double)test_images[i * width * height + j] / 255.0f;
+
+        cudaCheckErrors(cudaMemcpyAsync(dev_data, &data[0], sizeof(double) * width * height, cudaMemcpyHostToDevice));
+
+        // Forward propagate test image
+        test.forward(dev_data, dev_fc1, dev_fc1Act, dev_fc2, dev_fc2Act, dev_fc3, dev_fc3Act, dev_fc4, dev_fc4Act,
+                     dev_fc5, dev_out, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias, dev_wfc3, dev_fc3bias,
+                     dev_wfc4, dev_fc4bias, dev_wfc5, dev_fc5bias, dev_onevec);
+
+        // Transfer output to host
+        std::vector<double> probs(10);
+
+        cudaCheckErrors(cudaMemcpy(&probs[0], dev_out, sizeof(double) * 10, cudaMemcpyDeviceToHost));
+
+        // Get label with maximum probability
+        int max_label = 0;
+        for (int id = 1; id < 10; ++id)
+        {
+            if (probs[max_label] < probs[id])
+                max_label = id;
+        }
+
+        if (max_label == test_labels[i])
+            ++count;
+    }
+    accuracy = (double)count / (double)test_size;
+
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+
+    printf("Accuracy = %.2f%% \n", accuracy * 100.0f);
+    printf("%d images, batch size = %d, time = %10.3e ms\n", test_size, 1, elapsedTime);
+
     // free host memory
+    free(loss);
 
     // free device memory
     cudaCheckErrors(cudaFree(dev_data));

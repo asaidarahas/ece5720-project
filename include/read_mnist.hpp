@@ -13,8 +13,8 @@ namespace mnist
     {
         std::vector<uint8_t> training_images; // training images
         std::vector<uint8_t> test_images;     // test images
-        std::vector<int> training_labels;     // training labels
-        std::vector<int> test_labels;         // test labels
+        std::vector<uint8_t> training_labels; // training labels
+        std::vector<uint8_t> test_labels;     // test labels
     };
 
     inline int reverseInt(int i)
@@ -29,20 +29,20 @@ namespace mnist
         return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
     }
 
-    void get_image_size(const std::string &path, size_t& width, size_t& height)
+    void get_image_size(const std::string &path, size_t &width, size_t &height)
     {
         std::string full_path = path + "/train-images-idx3-ubyte";
         FILE *fp = fopen(full_path.c_str(), "rb");
 
         if (fp)
         {
-            int magic_number;
-            int number_of_images;
+            uint32_t magic_number;
+            uint32_t number_of_images;
 
-            fread(&magic_number, sizeof(magic_number), 1, fp);
+            fread(&magic_number, sizeof(uint32_t), 1, fp);
             magic_number = reverseInt(magic_number);
 
-            fread(&number_of_images, sizeof(number_of_images), 1, fp);
+            fread(&number_of_images, sizeof(uint32_t), 1, fp);
             number_of_images = reverseInt(number_of_images);
 
             fread(&width, sizeof(int), 1, fp);
@@ -64,21 +64,21 @@ namespace mnist
 
         if (fp)
         {
-            int magic_number;
-            int number_of_images;
-            int width;
-            int height;
+            uint32_t magic_number;
+            uint32_t number_of_images;
+            uint32_t width;
+            uint32_t height;
 
-            fread(&magic_number, sizeof(magic_number), 1, fp);
+            fread(&magic_number, sizeof(uint32_t), 1, fp);
             magic_number = reverseInt(magic_number);
 
-            fread(&number_of_images, sizeof(number_of_images), 1, fp);
+            fread(&number_of_images, sizeof(uint32_t), 1, fp);
             number_of_images = reverseInt(number_of_images);
 
-            fread(&width, sizeof(width), 1, fp);
+            fread(&width, sizeof(uint32_t), 1, fp);
             width = reverseInt(width);
 
-            fread(&height, sizeof(height), 1, fp);
+            fread(&height, sizeof(uint32_t), 1, fp);
             height = reverseInt(height);
 
             std::vector<uint8_t> dataset(number_of_images * width * height);
@@ -94,23 +94,23 @@ namespace mnist
         fclose(fp);
     }
 
-    std::vector<int> read_mnist_labels(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_mnist_labels(const std::string &path, std::size_t limit)
     {
         FILE *fp = fopen(path.c_str(), "rb");
 
         if (fp)
         {
-            int magic_number;
-            int number_of_labels;
+            uint32_t magic_number;
+            uint32_t number_of_labels;
 
-            fread(&magic_number, sizeof(magic_number), 1, fp);
+            fread(&magic_number, sizeof(uint32_t), 1, fp);
             magic_number = reverseInt(magic_number);
 
-            fread(&number_of_labels, sizeof(number_of_labels), 1, fp);
+            fread(&number_of_labels, sizeof(uint32_t), 1, fp);
             number_of_labels = reverseInt(number_of_labels);
 
-            std::vector<int> dataset(number_of_labels);
-            fread(&dataset[0], sizeof(int), 1, fp);
+            std::vector<uint8_t> dataset(number_of_labels);
+            fread(&dataset[0], sizeof(uint8_t), number_of_labels, fp);
 
             fclose(fp);
             return dataset;
@@ -132,12 +132,12 @@ namespace mnist
         return read_mnist_images(path + "/t10k-images-idx3-ubyte", limit);
     }
 
-    std::vector<int> read_training_labels(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_training_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/train-labels-idx1-ubyte", limit);
     }
 
-    std::vector<int> read_test_labels(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_test_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/t10k-labels-idx1-ubyte", limit);
     }

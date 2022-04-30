@@ -21,16 +21,24 @@ add_library(ann STATIC src/ann.cu)
 
 target_include_directories(ann PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lpthread -std=c++11")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lpthread -std=c++11")
+# set(CMAKE_CUDA_FLAGS_DEBUG "-g -G")
  
 # We need to explicitly state that we need all CUDA files in the 
 # library to be built with -dc as the member functions 
 # could be called by other libraries and executables
 set_target_properties(ann PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(ann PRIVATE ${CUDA_LIBRARIES})
+target_link_libraries(ann PRIVATE ${CUDA_LIBRARIES} -lcublas -lcudnn)
 
 set(MNIST_DATA_DIR ${CMAKE_CURRENT_LIST_DIR}/data)
 target_compile_definitions(ann PRIVATE MNIST_DATA_DIR="${MNIST_DATA_DIR}")
+target_compile_options(ann PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                       --generate-line-info
+                       --use_fast_math
+                       --relocatable-device-code=true
+                       -lpthread
+                       -G
+                       >)
 
 add_executable(ann_test tests/test.cu)
  
