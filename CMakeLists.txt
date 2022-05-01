@@ -28,7 +28,7 @@ target_include_directories(ann PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 # library to be built with -dc as the member functions 
 # could be called by other libraries and executables
 set_target_properties(ann PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(ann PRIVATE ${CUDA_LIBRARIES} -lcublas -lcudnn)
+target_link_libraries(ann PRIVATE ${CUDA_LIBRARIES} -lcublas -lcudnn -lcurand)
 
 set(MNIST_DATA_DIR ${CMAKE_CURRENT_LIST_DIR}/data)
 target_compile_definitions(ann PRIVATE MNIST_DATA_DIR="${MNIST_DATA_DIR}")
