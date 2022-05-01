@@ -5,7 +5,6 @@ enable_language(CUDA)
 
 find_package(CUDA 10.1 REQUIRED)
 
-# set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc")
 set(CMAKE_CUDA_STANDARD 14)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")

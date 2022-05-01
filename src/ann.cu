@@ -580,6 +580,8 @@ int main(int argc, char **argv)
                      // maximum occupancy for a full device launch
     int gridSize;    // The actual grid size needed, based on input size
     int num_classes = 10;
+    FILE *fp = NULL;
+    fp = fopen("output.csv", "w");
 
     if (argc == 1)
     {
@@ -862,6 +864,8 @@ int main(int argc, char **argv)
                 max_label = id;
         }
 
+        fprintf(fp, "%d\n", max_label);
+
         if (test_labels[i * num_classes + max_label] == 1)
             ++count;
     }
@@ -924,6 +928,9 @@ int main(int argc, char **argv)
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
+
+    // close file
+    fclose(fp);
 
     return 0;
 }
