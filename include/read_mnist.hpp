@@ -13,8 +13,8 @@ namespace mnist
     {
         std::vector<uint8_t> training_images; // training images
         std::vector<uint8_t> test_images;     // test images
-        std::vector<int> training_labels; // training labels
-        std::vector<int> test_labels;     // test labels
+        std::vector<int> training_labels;     // training labels
+        std::vector<int> test_labels;         // test labels
     };
 
     inline int reverseInt(int i)
@@ -109,16 +109,17 @@ namespace mnist
 
             fread(&number_of_labels, sizeof(uint32_t), 1, fp);
             number_of_labels = reverseInt(number_of_labels);
-            
+
             std::vector<uint8_t> labels(number_of_labels);
             fread(&labels[0], sizeof(uint8_t), number_of_labels, fp);
+
             // one-hot encoding
-            std::vector<int> dataset(number_of_labels*num_classes);
-            for (int i=0; i<number_of_labels; i++)
-            {   
-                dataset[i*num_classes + labels[i]] = 1;
+            std::vector<int> dataset(number_of_labels * num_classes);
+            for (int i = 0; i < number_of_labels; i++)
+            {
+                dataset[i * num_classes + labels[i]] = 1;
             }
-            
+
             fclose(fp);
             return dataset;
         }

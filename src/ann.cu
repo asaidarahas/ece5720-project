@@ -11,8 +11,6 @@
 
 #include "read_mnist.hpp"
 
-// #define blockSize 128
-
 #define cudaCheckErrors(ans)                  \
     {                                         \
         gpuAssert((ans), __FILE__, __LINE__); \
@@ -153,9 +151,6 @@ __global__ void CrossEntropyLoss(double *dloss, double *probs, const double *lab
         loss += label[idx * num_labels + c] * logf(probs[idx * num_labels + c]);
         dloss[idx * num_labels + c] = -(label[idx * num_labels + c] * logf(probs[idx * num_labels + c]));
     }
-    // const int label_value = static_cast<int>(label[idx]);
-
-    // dloss[idx * num_labels + label_value] = -loss;
 }
 
 __global__ void FillOnes(double *vec, int size)
@@ -589,7 +584,7 @@ int main(int argc, char **argv)
     if (argc == 1)
     {
         batchSize = 8;
-        epochs = 1000;
+        epochs = 100;
         lr = 0.02;
     }
     else
@@ -765,51 +760,56 @@ int main(int argc, char **argv)
 
     /* Training */
     printf("\nTraining...\n");
-    double *loss;
+    double *loss, total_loss;
     loss = (double *)malloc(batchSize * fc5.outputs * sizeof(double));
-    double total_loss;
-
+    int num_steps = (train_size) / batchSize;
     for (int iter = 0; iter < epochs; ++iter)
     {
-        total_loss = 0;
-        int imageid = iter % (train_size / model.batchSize);
-
-        // Prepare current batch on device
-        cudaCheckErrors(cudaMemcpyAsync(dev_data, &train_images_double[imageid * model.batchSize * width * height],
-                                        sizeof(double) * model.batchSize * width * height, cudaMemcpyHostToDevice));
-        cudaCheckErrors(cudaMemcpyAsync(dev_labels, &train_labels_double[imageid * model.batchSize * num_classes],
-                                        sizeof(double) * model.batchSize * num_classes, cudaMemcpyHostToDevice));
-
-        // Forward propagation
-        model.forward(dev_data, dev_fc1, dev_fc1Act, dev_fc2, dev_fc2Act, dev_fc3, dev_fc3Act, dev_fc4, dev_fc4Act,
-                      dev_fc5, dev_out, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias, dev_wfc3, dev_fc3bias,
-                      dev_wfc4, dev_fc4bias, dev_wfc5, dev_fc5bias, dev_onevec);
-
-        // compute loss
-        CrossEntropyLoss<<<RoundUp(batchSize, 128), 128>>>(dev_dloss, dev_out, dev_labels, fc5.outputs, batchSize);
-
-        cudaCheckErrors(cudaMemcpy(loss, dev_dloss, fc5.outputs * batchSize * sizeof(double), cudaMemcpyDeviceToHost));
-        for (int i = 0; i < fc5.outputs * batchSize; i++)
+        for (int step = 0; step < num_steps; step++)
         {
-            total_loss += loss[i];
+            int imageid = step;
+
+            // Prepare current batch on device
+            cudaCheckErrors(cudaMemcpyAsync(dev_data, &train_images_double[imageid * model.batchSize * width * height],
+                                            sizeof(double) * model.batchSize * width * height, cudaMemcpyHostToDevice));
+            cudaCheckErrors(cudaMemcpyAsync(dev_labels, &train_labels_double[imageid * model.batchSize * num_classes],
+                                            sizeof(double) * model.batchSize * num_classes, cudaMemcpyHostToDevice));
+
+            // Forward propagation
+            model.forward(dev_data, dev_fc1, dev_fc1Act, dev_fc2, dev_fc2Act, dev_fc3, dev_fc3Act, dev_fc4, dev_fc4Act,
+                          dev_fc5, dev_out, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias, dev_wfc3, dev_fc3bias,
+                          dev_wfc4, dev_fc4bias, dev_wfc5, dev_fc5bias, dev_onevec);
+
+            // compute loss
+            if ((step + 1) % 2000 == 0)
+            {
+                CrossEntropyLoss<<<RoundUp(batchSize, 128), 128>>>(dev_dloss, dev_out, dev_labels, fc5.outputs, batchSize);
+
+                cudaCheckErrors(cudaMemcpy(loss, dev_dloss, fc5.outputs * batchSize * sizeof(double), cudaMemcpyDeviceToHost));
+                total_loss = 0;
+                for (int i = 0; i < fc5.outputs * batchSize; i++)
+                {
+                    total_loss += loss[i];
+                }
+                std::cout << "Epoch " << iter + 1 << "/" << epochs << ", Step = " << step + 1 << "/" << num_steps << ", Loss = " << total_loss / batchSize << std::endl;
+            }
+
+            // Backpropagation
+            model.backward(dev_data, dev_labels, dev_fc1, dev_fc1Act, dev_fc2, dev_fc2Act, dev_fc3, dev_fc3Act,
+                           dev_fc4, dev_fc4Act, dev_fc5, dev_out, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias,
+                           dev_wfc3, dev_fc3bias, dev_wfc4, dev_fc4bias, dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias,
+                           dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias, dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias,
+                           dev_dfc1, dev_dfc1act, dev_dfc2, dev_dfc2act, dev_dfc3, dev_dfc3act, dev_dfc4, dev_dfc4act,
+                           dev_dfc5, dev_onevec);
+
+            // compute learning rate
+            lr *= 1.f / (1.f + lr_decay * step * iter);
+
+            // Update weights
+            model.update(lr, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias, dev_wfc3, dev_fc3bias, dev_wfc4, dev_fc4bias,
+                         dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias, dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias,
+                         dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias);
         }
-        std::cout << "Epoch " << iter + 1 << "/" << epochs << ", Loss = " << total_loss / batchSize << std::endl;
-
-        // Backpropagation
-        model.backward(dev_data, dev_labels, dev_fc1, dev_fc1Act, dev_fc2, dev_fc2Act, dev_fc3, dev_fc3Act,
-                       dev_fc4, dev_fc4Act, dev_fc5, dev_out, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias,
-                       dev_wfc3, dev_fc3bias, dev_wfc4, dev_fc4bias, dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias,
-                       dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias, dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias,
-                       dev_dfc1, dev_dfc1act, dev_dfc2, dev_dfc2act, dev_dfc3, dev_dfc3act, dev_dfc4, dev_dfc4act,
-                       dev_dfc5, dev_onevec);
-
-        // compute learning rate
-        lr *= 1.f / (1.f + lr_decay * iter);
-
-        // Update weights
-        model.update(lr, dev_wfc1, dev_fc1bias, dev_wfc2, dev_fc2bias, dev_wfc3, dev_fc3bias, dev_wfc4, dev_fc4bias,
-                     dev_wfc5, dev_fc5bias, dev_gfc1, dev_gfc1bias, dev_gfc2, dev_gfc2bias, dev_gfc3, dev_gfc3bias,
-                     dev_gfc4, dev_gfc4bias, dev_gfc5, dev_gfc5bias);
     }
     cudaCheckErrors(cudaDeviceSynchronize());
 
