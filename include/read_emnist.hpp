@@ -5,23 +5,21 @@
 
 #pragma once
 
-typedef unsigned char uchar;
-
 int num_classes = 47;
 
 namespace mnist
 {
     struct MnistDataset
     {
-        std::vector<char> training_images; // training images
-        std::vector<char> test_images;     // test images
-        std::vector<char> training_labels;     // training labels
-        std::vector<char> test_labels;         // test labels
+        std::vector<uint8_t> training_images; // training images
+        std::vector<uint8_t> test_images;     // test images
+        std::vector<int> training_labels;     // training labels
+        std::vector<int> test_labels;         // test labels
     };
 
     inline int reverseInt(int i)
     {
-        uchar c1, c2, c3, c4;
+        uint8_t c1, c2, c3, c4;
 
         c1 = i & 255;
         c2 = (i >> 8) & 255;
@@ -60,7 +58,7 @@ namespace mnist
         fclose(fp);
     }
 
-    std::vector<char> read_mnist_images(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_mnist_images(const std::string &path, std::size_t limit)
     {
         FILE *fp = fopen(path.c_str(), "rb");
 
@@ -83,8 +81,8 @@ namespace mnist
             fread(&height, sizeof(uint32_t), 1, fp);
             height = reverseInt(height);
 
-            std::vector<char> dataset(number_of_images * width * height);
-            fread(&dataset[0], sizeof(char), number_of_images * width * height, fp);
+            std::vector<uint8_t> dataset(number_of_images * width * height);
+            fread(&dataset[0], sizeof(uint8_t), number_of_images * width * height, fp);
 
             fclose(fp);
             return dataset;
@@ -96,7 +94,7 @@ namespace mnist
         fclose(fp);
     }
 
-    std::vector<char> read_mnist_labels(const std::string &path, std::size_t limit)
+    std::vector<int> read_mnist_labels(const std::string &path, std::size_t limit)
     {
         FILE *fp = fopen(path.c_str(), "rb");
 
@@ -104,7 +102,6 @@ namespace mnist
         {
             uint32_t magic_number;
             uint32_t number_of_labels;
-            //int num_classes = 47;
 
             fread(&magic_number, sizeof(uint32_t), 1, fp);
             magic_number = reverseInt(magic_number);
@@ -112,11 +109,11 @@ namespace mnist
             fread(&number_of_labels, sizeof(uint32_t), 1, fp);
             number_of_labels = reverseInt(number_of_labels);
 
-            std::vector<char> labels(number_of_labels);
-            fread(&labels[0], sizeof(char), number_of_labels, fp);
+            std::vector<uint8_t> labels(number_of_labels);
+            fread(&labels[0], sizeof(uint8_t), number_of_labels, fp);
 
             // one-hot encoding
-            std::vector<char> dataset(number_of_labels * num_classes);
+            std::vector<int> dataset(number_of_labels * num_classes);
             for (int i = 0; i < number_of_labels; i++)
             {
                 dataset[i * num_classes + labels[i]] = 1;
@@ -132,22 +129,22 @@ namespace mnist
         fclose(fp);
     }
 
-    std::vector<char> read_training_images(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_training_images(const std::string &path, std::size_t limit)
     {
         return read_mnist_images(path + "/emnist-balanced-train-images-idx3-ubyte", limit);
     }
 
-    std::vector<char> read_test_images(const std::string &path, std::size_t limit)
+    std::vector<uint8_t> read_test_images(const std::string &path, std::size_t limit)
     {
         return read_mnist_images(path + "/emnist-balanced-test-images-idx3-ubyte", limit);
     }
 
-    std::vector<char> read_training_labels(const std::string &path, std::size_t limit)
+    std::vector<int> read_training_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/emnist-balanced-train-labels-idx1-ubyte", limit);
     }
 
-    std::vector<char> read_test_labels(const std::string &path, std::size_t limit)
+    std::vector<int> read_test_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/emnist-balanced-test-labels-idx1-ubyte", limit);
     }

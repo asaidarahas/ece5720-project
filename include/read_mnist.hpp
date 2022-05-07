@@ -5,8 +5,6 @@
 
 #pragma once
 
-typedef unsigned char uchar;
-
 int num_classes = 10;
 
 namespace mnist
@@ -21,7 +19,7 @@ namespace mnist
 
     inline int reverseInt(int i)
     {
-        uchar c1, c2, c3, c4;
+        uint8_t c1, c2, c3, c4;
 
         c1 = i & 255;
         c2 = (i >> 8) & 255;

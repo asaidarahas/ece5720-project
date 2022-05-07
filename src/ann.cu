@@ -9,8 +9,8 @@
 #include <cublas_v2.h>
 #include <cudnn.h>
 
-#include "read_mnist.hpp"
-//include "read_emnist.hpp"
+// #include "read_mnist.hpp"
+#include "read_emnist.hpp"
 //#include "read_fashion.hpp"
 
 #define cudaCheckErrors(ans)                  \
@@ -570,10 +570,7 @@ public:
 
 int main(int argc, char **argv)
 {
-    //std::vector<uint8_t> train_images, test_images;   //mnist
-    //std::vector<int> train_labels, test_labels;
-
-    std::vector<uint8_t> train_images, test_images;     //emnist
+    std::vector<uint8_t> train_images, test_images;
     std::vector<int> train_labels, test_labels;
 
     int batchSize, epochs;
@@ -723,7 +720,7 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaMalloc(&dev_gfc5bias, sizeof(double) * fc5.bias.size()));
 
     // Diff wrt data
-    double *dev_dfc1, *dev_dfc1act, *dev_dfc2, *dev_dfc2act, *dev_dfc3, *dev_dfc3act, *dev_dfc4, *dev_dfc4act, *dev_dfc5, *dev_dout, *dev_dloss;
+    double *dev_dfc1, *dev_dfc1act, *dev_dfc2, *dev_dfc2act, *dev_dfc3, *dev_dfc3act, *dev_dfc4, *dev_dfc4act, *dev_dfc5, *dev_dout, *dev_loss;
     cudaCheckErrors(cudaMalloc(&dev_dfc1, sizeof(double) * model.batchSize * fc1.inputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc2, sizeof(double) * model.batchSize * fc2.inputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc3, sizeof(double) * model.batchSize * fc3.inputs));
@@ -735,7 +732,7 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaMalloc(&dev_dfc3act, sizeof(double) * model.batchSize * fc3.outputs));
     cudaCheckErrors(cudaMalloc(&dev_dfc4act, sizeof(double) * model.batchSize * fc4.outputs));
     cudaCheckErrors(cudaMalloc(&dev_dout, sizeof(double) * model.batchSize * fc5.outputs));
-    cudaCheckErrors(cudaMalloc(&dev_dloss, sizeof(double) * model.batchSize * fc5.outputs));
+    cudaCheckErrors(cudaMalloc(&dev_loss, sizeof(double) * model.batchSize * fc5.outputs));
 
     // Transfer Host to Device
     cudaCheckErrors(cudaMemcpyAsync(dev_wfc1, &fc1.weights[0], sizeof(double) * fc1.weights.size(), cudaMemcpyHostToDevice));
@@ -766,6 +763,8 @@ int main(int argc, char **argv)
     }
     cudaCheckErrors(cudaDeviceSynchronize());
 
+    cudaCheckErrors(cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, CrossEntropyLoss, 0, 0));
+
     /* Training */
     printf("\nTraining...\n");
     double *loss, total_loss;
@@ -791,9 +790,9 @@ int main(int argc, char **argv)
             // compute loss
             if ((step + 1) % 2000 == 0)
             {
-                CrossEntropyLoss<<<RoundUp(batchSize, 128), 128>>>(dev_dloss, dev_out, dev_labels, fc5.outputs, batchSize);
+                CrossEntropyLoss<<<RoundUp(batchSize, blockSize), blockSize>>>(dev_loss, dev_out, dev_labels, fc5.outputs, batchSize);
 
-                cudaCheckErrors(cudaMemcpy(loss, dev_dloss, fc5.outputs * batchSize * sizeof(double), cudaMemcpyDeviceToHost));
+                cudaCheckErrors(cudaMemcpy(loss, dev_loss, fc5.outputs * batchSize * sizeof(double), cudaMemcpyDeviceToHost));
                 total_loss = 0;
                 for (int i = 0; i < fc5.outputs * batchSize; i++)
                 {
@@ -930,7 +929,7 @@ int main(int argc, char **argv)
     cudaCheckErrors(cudaFree(dev_dfc2act));
     cudaCheckErrors(cudaFree(dev_dfc3act));
     cudaCheckErrors(cudaFree(dev_dfc4act));
-    cudaCheckErrors(cudaFree(dev_dloss));
+    cudaCheckErrors(cudaFree(dev_loss));
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
