@@ -10,6 +10,8 @@
 #include <cudnn.h>
 
 #include "read_mnist.hpp"
+//include "read_emnist.hpp"
+//#include "read_fashion.hpp"
 
 #define cudaCheckErrors(ans)                  \
     {                                         \
@@ -568,8 +570,12 @@ public:
 
 int main(int argc, char **argv)
 {
-    std::vector<uint8_t> train_images, test_images;
+    //std::vector<uint8_t> train_images, test_images;   //mnist
+    //std::vector<int> train_labels, test_labels;
+
+    std::vector<uint8_t> train_images, test_images;     //emnist
     std::vector<int> train_labels, test_labels;
+
     int batchSize, epochs;
     size_t width, height;
     float elapsedTime;
@@ -579,7 +585,7 @@ int main(int argc, char **argv)
     int minGridSize; // The minimum grid size needed to achieve the
                      // maximum occupancy for a full device launch
     int gridSize;    // The actual grid size needed, based on input size
-    int num_classes = 10;
+    
     FILE *fp = NULL;
     fp = fopen("output.csv", "w");
 
@@ -591,9 +597,9 @@ int main(int argc, char **argv)
     }
     else
     {
-        batchSize = atoi(argv[2]);
-        epochs = atoi(argv[4]);
-        lr = atof(argv[6]);
+        batchSize = atoi(argv[1]);
+        epochs = atoi(argv[2]);
+        lr = atof(argv[3]);
     }
 
     cudaCheckErrors(cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, FillOnes, 0, 0));

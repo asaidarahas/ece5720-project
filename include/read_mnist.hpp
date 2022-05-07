@@ -7,6 +7,8 @@
 
 typedef unsigned char uchar;
 
+int num_classes = 10;
+
 namespace mnist
 {
     struct MnistDataset
@@ -148,7 +150,8 @@ namespace mnist
     std::vector<int> read_test_labels(const std::string &path, std::size_t limit)
     {
         return read_mnist_labels(path + "/t10k-labels-idx1-ubyte", limit);
-    }
+    } 
+
 
     MnistDataset read_dataset(const std::string &path, std::size_t training_limit = 0, std::size_t test_limit = 0)
     {
