@@ -1,4 +1,4 @@
-# ECE5720 Parallel Computing
+# ECE 5720 Parallel Computing
 
 The following steps will train and test the artificial neural networks on MNIST dataset:
 
